@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom animations */
+@keyframes scan {
+  0%, 100% { top: 0%; }
+  50% { top: calc(100% - 4px); }
+}
+
+.animate-scan {
+  animation: scan 2s ease-in-out infinite;
+}
+
+/* Safe area for mobile */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Smooth animations */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-in-from-bottom-2 {
+  from { transform: translateY(8px); }
+  to { transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fade-in 0.3s ease-out, slide-in-from-bottom-2 0.3s ease-out;
+}

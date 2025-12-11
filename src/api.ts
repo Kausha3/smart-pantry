@@ -4,9 +4,9 @@ const getApiBaseUrl = () => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  // In production, derive backend URL from current hostname
+  // In production, use the backend Railway URL
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    return 'https://worthy-encouragement-production.up.railway.app/api';
   }
   return 'http://localhost:3001/api';
 };

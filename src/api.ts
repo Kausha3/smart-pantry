@@ -1,6 +1,17 @@
 // API configuration and service for Smart Pantry
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // In production, derive backend URL from current hostname
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  }
+  return 'http://localhost:3001/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 export type Category = 'Produce' | 'Dairy' | 'Pantry' | 'Meat' | 'Other';
 

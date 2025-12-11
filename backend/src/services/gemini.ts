@@ -17,7 +17,7 @@ const EXPIRY_DEFAULTS: Record<Category, number> = {
  * Parse OCR text using Gemini to extract food items
  */
 export async function parseReceiptText(ocrText: string): Promise<Ingredient[]> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const prompt = `You are a food item extraction AI. Analyze this grocery receipt OCR text and extract food items.
 
@@ -87,7 +87,7 @@ export async function generateRecipeSuggestions(
   ingredients: Ingredient[],
   dietary?: string
 ): Promise<Recipe[]> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const hasIngredients = ingredients && ingredients.length > 0;
 
@@ -208,7 +208,7 @@ Do not include any markdown formatting or code blocks in your response.`;
  * Infer expiry date for a food item using AI
  */
 export async function inferExpiryDate(itemName: string, category: Category): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const prompt = `You are a food safety expert. For this grocery item, estimate the typical shelf life when stored properly at home.
 

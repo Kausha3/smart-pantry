@@ -22,6 +22,7 @@ export interface Recipe {
   calories: number;
   image: string;
   instructions?: string[];
+  dietary?: string[];
 }
 
 // Receipt processing result

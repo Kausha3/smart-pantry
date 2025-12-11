@@ -81,18 +81,33 @@ Do not include any markdown formatting or code blocks in your response.`;
 
 /**
  * Generate recipe suggestions based on available ingredients
+ * Supports cookbook mode (no ingredients) and dietary filters
  */
-export async function generateRecipeSuggestions(ingredients: Ingredient[]): Promise<Recipe[]> {
+export async function generateRecipeSuggestions(
+  ingredients: Ingredient[],
+  dietary?: string
+): Promise<Recipe[]> {
   const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
+  const hasIngredients = ingredients && ingredients.length > 0;
+
   // Sort by expiry date to prioritize items expiring soon
-  const sortedIngredients = [...ingredients].sort((a, b) =>
-    new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime()
-  );
+  const sortedIngredients = hasIngredients
+    ? [...ingredients].sort((a, b) =>
+        new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime()
+      )
+    : [];
 
   const ingredientList = sortedIngredients.map(i => `${i.name} (expires: ${i.expiryDate})`).join('\n');
 
-  const prompt = `You are a creative chef AI. Generate 4 recipe suggestions that use the available ingredients, prioritizing items that expire soon.
+  // Build dietary instruction
+  const dietaryInstruction = dietary
+    ? `5. All recipes MUST be ${dietary} (no exceptions)`
+    : '';
+
+  // Different prompts for cookbook mode vs inventory mode
+  const prompt = hasIngredients
+    ? `You are a creative chef AI. Generate 6 recipe suggestions that use the available ingredients, prioritizing items that expire soon.
 
 AVAILABLE INGREDIENTS:
 ${ingredientList}
@@ -102,8 +117,9 @@ INSTRUCTIONS:
 2. Include realistic missing ingredients needed to complete each recipe
 3. Provide accurate calorie estimates and cooking times
 4. Make recipes diverse (don't repeat similar dishes)
+${dietaryInstruction}
 
-Respond ONLY with a valid JSON array of 4 recipe objects:
+Respond ONLY with a valid JSON array of 6 recipe objects:
 [
   {
     "title": "Recipe Name",
@@ -111,10 +127,36 @@ Respond ONLY with a valid JSON array of 4 recipe objects:
     "missingIngredients": ["ingredient1", "ingredient2"],
     "time": "25 min",
     "calories": 450,
-    "instructions": ["Step 1...", "Step 2..."]
+    "instructions": ["Step 1...", "Step 2..."],
+    "dietary": ["vegetarian", "gluten-free"]
   }
 ]
 
+The "dietary" field should list applicable tags from: vegetarian, vegan, gluten-free, dairy-free
+Do not include any markdown formatting or code blocks in your response.`
+    : `You are a creative chef AI. Generate 8 diverse recipe suggestions for a cookbook browser.
+
+INSTRUCTIONS:
+1. Create a variety of recipes across different cuisines and difficulty levels
+2. Include all necessary ingredients for each recipe
+3. Provide accurate calorie estimates and cooking times
+4. Make recipes diverse (breakfast, lunch, dinner, snacks)
+${dietaryInstruction ? dietaryInstruction : '5. Include a mix of dietary options (vegetarian, vegan, meat-based)'}
+
+Respond ONLY with a valid JSON array of 8 recipe objects:
+[
+  {
+    "title": "Recipe Name",
+    "usedIngredients": [],
+    "missingIngredients": ["ingredient1", "ingredient2", "ingredient3"],
+    "time": "25 min",
+    "calories": 450,
+    "instructions": ["Step 1...", "Step 2..."],
+    "dietary": ["vegetarian", "gluten-free"]
+  }
+]
+
+The "dietary" field should list applicable tags from: vegetarian, vegan, gluten-free, dairy-free
 Do not include any markdown formatting or code blocks in your response.`;
 
   try {
@@ -129,9 +171,6 @@ Do not include any markdown formatting or code blocks in your response.`;
 
     const parsed = JSON.parse(cleanedResponse);
 
-    // Add IDs and calculate match percentage
-    const ingredientNames = ingredients.map(i => i.name.toLowerCase());
-
     return parsed.map((recipe: {
       title: string;
       usedIngredients: string[];
@@ -139,9 +178,12 @@ Do not include any markdown formatting or code blocks in your response.`;
       time: string;
       calories: number;
       instructions?: string[];
+      dietary?: string[];
     }) => {
       const totalIngredients = recipe.usedIngredients.length + recipe.missingIngredients.length;
-      const matchPercentage = Math.round((recipe.usedIngredients.length / totalIngredients) * 100);
+      const matchPercentage = hasIngredients
+        ? Math.round((recipe.usedIngredients.length / totalIngredients) * 100)
+        : 0; // Cookbook mode shows 0% match since user has no inventory
 
       return {
         id: uuidv4(),
@@ -152,6 +194,7 @@ Do not include any markdown formatting or code blocks in your response.`;
         calories: recipe.calories,
         matchPercentage,
         instructions: recipe.instructions || [],
+        dietary: recipe.dietary || [],
         image: getRecipeImage(recipe.title)
       };
     }).sort((a: Recipe, b: Recipe) => b.matchPercentage - a.matchPercentage);

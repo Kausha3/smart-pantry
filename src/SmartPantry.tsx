@@ -1310,49 +1310,62 @@ function ScannerView({ backendConnected, onScanComplete }: {
 
 // ============ RECIPE VIEW ============
 
+type DietaryFilter = 'all' | 'vegetarian' | 'vegan' | 'gluten-free' | 'dairy-free' | 'quick';
+
 function RecipeView({ inventory, backendConnected }: { inventory: Ingredient[]; backendConnected: boolean }) {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [dietaryFilter, setDietaryFilter] = useState<DietaryFilter>('all');
 
   useEffect(() => {
-    if (backendConnected && inventory.length > 0) {
+    if (backendConnected) {
       fetchRecipes();
     } else {
-      setRecipes(getFallbackRecipes(inventory));
+      setError('Backend not connected. Please check your connection.');
     }
-  }, [backendConnected, inventory]);
+  }, [backendConnected]);
 
-  const fetchRecipes = async () => {
+  const fetchRecipes = async (dietaryPref?: DietaryFilter) => {
     setLoading(true);
     setError('');
     try {
-      const result = await api.getRecipeSuggestions(inventory);
+      const result = await api.getRecipeSuggestions(
+        inventory.length > 0 ? inventory : undefined,
+        dietaryPref && dietaryPref !== 'all' ? dietaryPref : undefined
+      );
       setRecipes(result);
     } catch (err) {
-      setError('Failed to fetch AI recipes.');
-      setRecipes(getFallbackRecipes(inventory));
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch recipes';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const getFallbackRecipes = (inv: Ingredient[]): Recipe[] => {
-    const allRecipes: Recipe[] = [
-      { id: 'r1', title: 'Creamy Chicken Spinach Pasta', time: '25 min', calories: 450, usedIngredients: ['Chicken Breast', 'Spinach', 'Parmesan'], missingIngredients: ['Pasta', 'Heavy Cream'], matchPercentage: 0, image: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400&h=300&fit=crop' },
-      { id: 'r2', title: 'Classic Eggs Benedict', time: '30 min', calories: 520, usedIngredients: ['Eggs'], missingIngredients: ['English Muffin', 'Ham'], matchPercentage: 0, image: 'https://images.unsplash.com/photo-1608039829572-9b59f7e06c9e?w=400&h=300&fit=crop' },
-      { id: 'r3', title: 'Greek Yogurt Parfait', time: '5 min', calories: 280, usedIngredients: ['Greek Yogurt'], missingIngredients: ['Granola', 'Berries'], matchPercentage: 0, image: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400&h=300&fit=crop' },
-      { id: 'r4', title: 'Tomato Basil Soup', time: '40 min', calories: 210, usedIngredients: ['Tomato Sauce'], missingIngredients: ['Basil', 'Cream'], matchPercentage: 0, image: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?w=400&h=300&fit=crop' },
-    ];
+  const dietaryFilters: { key: DietaryFilter; label: string; icon: string }[] = [
+    { key: 'all', label: 'All', icon: '🍽️' },
+    { key: 'vegetarian', label: 'Vegetarian', icon: '🥗' },
+    { key: 'vegan', label: 'Vegan', icon: '🌱' },
+    { key: 'gluten-free', label: 'Gluten-Free', icon: '🌾' },
+    { key: 'dairy-free', label: 'Dairy-Free', icon: '🥛' },
+    { key: 'quick', label: 'Under 20 min', icon: '⚡' },
+  ];
 
-    return allRecipes.map(recipe => {
-      const available = recipe.usedIngredients.filter(req =>
-        inv.some(item => item.name.toLowerCase().includes(req.toLowerCase().split(' ')[0]))
-      );
-      const percentage = Math.round((available.length / (available.length + recipe.missingIngredients.length)) * 100);
-      return { ...recipe, matchPercentage: percentage };
-    }).sort((a, b) => b.matchPercentage - a.matchPercentage);
-  };
+  // Filter recipes based on dietary preference
+  const filteredRecipes = recipes.filter(recipe => {
+    if (dietaryFilter === 'all') return true;
+    if (dietaryFilter === 'quick') {
+      // Parse time and check if under 20 min
+      const timeMatch = recipe.time.match(/(\d+)/);
+      if (timeMatch) {
+        const minutes = parseInt(timeMatch[1]);
+        return minutes <= 20;
+      }
+      return false;
+    }
+    return recipe.dietary?.includes(dietaryFilter);
+  });
 
   if (loading) {
     return (
@@ -1374,21 +1387,55 @@ function RecipeView({ inventory, backendConnected }: { inventory: Ingredient[]; 
         </div>
         <div className="flex items-center gap-2">
           {backendConnected && (
-            <button onClick={fetchRecipes} className="flex items-center gap-2 px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50 rounded-lg">
+            <button onClick={() => fetchRecipes(dietaryFilter)} className="flex items-center gap-2 px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50 rounded-lg">
               <RefreshCw size={14} />
               Refresh
             </button>
           )}
-          <span className="text-xs font-semibold text-emerald-600 bg-emerald-100 px-3 py-1.5 rounded-full">
-            Prioritizing expiring items
-          </span>
+          {inventory.length > 0 && (
+            <span className="text-xs font-semibold text-emerald-600 bg-emerald-100 px-3 py-1.5 rounded-full">
+              Prioritizing expiring items
+            </span>
+          )}
         </div>
+      </div>
+
+      {/* Dietary Filters */}
+      <div className="flex flex-wrap gap-2">
+        {dietaryFilters.map(filter => (
+          <button
+            key={filter.key}
+            onClick={() => setDietaryFilter(filter.key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              dietaryFilter === filter.key
+                ? 'bg-emerald-600 text-white shadow-md'
+                : 'bg-white border border-slate-200 text-slate-600 hover:border-emerald-500 hover:text-emerald-600'
+            }`}
+          >
+            <span>{filter.icon}</span>
+            {filter.label}
+          </button>
+        ))}
       </div>
 
       {error && <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-700">{error}</div>}
 
-      <div className="grid grid-cols-2 gap-6">
-        {recipes.map(recipe => (
+      {filteredRecipes.length === 0 ? (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <UtensilsCrossed size={32} className="text-slate-400" />
+          </div>
+          <p className="text-slate-500">No recipes match the "{dietaryFilters.find(f => f.key === dietaryFilter)?.label}" filter</p>
+          <button
+            onClick={() => setDietaryFilter('all')}
+            className="text-sm text-emerald-600 hover:underline mt-2"
+          >
+            Show all recipes
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-6">
+        {filteredRecipes.map(recipe => (
           <div key={recipe.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden group hover:shadow-lg transition-shadow cursor-pointer">
             <div className="relative h-48 overflow-hidden">
               <img src={recipe.image} alt={recipe.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
@@ -1401,7 +1448,16 @@ function RecipeView({ inventory, backendConnected }: { inventory: Ingredient[]; 
             </div>
 
             <div className="p-5">
-              <h4 className="font-bold text-slate-800 text-lg mb-3 group-hover:text-emerald-600 transition-colors">{recipe.title}</h4>
+              <h4 className="font-bold text-slate-800 text-lg mb-2 group-hover:text-emerald-600 transition-colors">{recipe.title}</h4>
+              {recipe.dietary && recipe.dietary.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {recipe.dietary.map(tag => (
+                    <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100 uppercase font-medium">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2 mb-4">
                 {recipe.usedIngredients.slice(0, 3).map(ing => (
                   <span key={ing} className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">{'\u2713'} {ing}</span>
@@ -1419,7 +1475,8 @@ function RecipeView({ inventory, backendConnected }: { inventory: Ingredient[]; 
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

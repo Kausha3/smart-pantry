@@ -11,12 +11,13 @@ router.use(authenticate);
 
 /**
  * POST /api/recipes/suggest - Get AI-generated recipe suggestions
+ * Supports both cookbook mode (no ingredients) and inventory-based suggestions
  */
 router.post('/suggest', async (req: AuthRequest, res: Response) => {
   try {
-    let { ingredients } = req.body;
+    let { ingredients, dietary } = req.body;
 
-    // If no ingredients provided, fetch from user's inventory
+    // If no ingredients provided, try to fetch from user's inventory
     if (!ingredients || ingredients.length === 0) {
       ingredients = db.prepare(`
         SELECT id, name, category, quantity, expiry_date as expiryDate, confidence
@@ -26,16 +27,9 @@ router.post('/suggest', async (req: AuthRequest, res: Response) => {
       `).all(req.userId) as Ingredient[];
     }
 
-    if (ingredients.length === 0) {
-      res.status(400).json({
-        success: false,
-        error: 'No ingredients available. Add items to your inventory first.'
-      });
-      return;
-    }
-
-    console.log('Generating recipes for', ingredients.length, 'ingredients');
-    const recipes = await generateRecipeSuggestions(ingredients);
+    // Generate recipes - now supports cookbook mode (empty inventory)
+    console.log('Generating recipes for', ingredients?.length || 0, 'ingredients', dietary ? `with ${dietary} filter` : '');
+    const recipes = await generateRecipeSuggestions(ingredients || [], dietary);
 
     res.json({ success: true, data: recipes } as ApiResponse<Recipe[]>);
   } catch (error) {

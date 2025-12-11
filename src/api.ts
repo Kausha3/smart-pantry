@@ -34,6 +34,7 @@ export interface Recipe {
   calories: number;
   image: string;
   instructions?: string[];
+  dietary?: string[];
 }
 
 export interface InventoryStats {
@@ -268,14 +269,24 @@ export async function processReceipt(file: File): Promise<ReceiptProcessingResul
 
 // ============ RECIPE API ============
 
-export async function getRecipeSuggestions(ingredients?: Ingredient[]): Promise<Recipe[]> {
+export async function getRecipeSuggestions(
+  ingredients?: Ingredient[],
+  dietary?: string
+): Promise<Recipe[]> {
+  const body: { ingredients?: Ingredient[]; dietary?: string } = {};
+
   if (ingredients && ingredients.length > 0) {
-    return apiRequest('/recipes/suggest', {
-      method: 'POST',
-      body: JSON.stringify({ ingredients }),
-    });
+    body.ingredients = ingredients;
   }
-  return apiRequest('/recipes/suggest');
+  if (dietary) {
+    body.dietary = dietary;
+  }
+
+  // Always use POST to pass dietary preferences
+  return apiRequest('/recipes/suggest', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }
 
 // ============ NOTIFICATIONS API ============
